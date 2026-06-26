@@ -10,6 +10,48 @@ A small Windows GUI for converting an Avena rent transaction Excel report into a
 
 This tool reads `.xlsx` files directly and does not require Excel to be installed.
 
+## Get The Tool
+
+### Option 1: Download ZIP
+
+Use this option if you do not want to install Git.
+
+1. Open the repo page:
+
+   ```text
+   https://github.com/VanyaHuaman/RentIifConverter
+   ```
+
+2. Click `Code`.
+
+3. Click `Download ZIP`.
+
+4. Extract the ZIP file.
+
+5. Open the extracted folder.
+
+6. Double-click `Run-RentIifConverter.cmd`.
+
+### Option 2: GitHub CLI
+
+Use this option if GitHub CLI is installed.
+
+```cmd
+gh repo clone VanyaHuaman/RentIifConverter
+cd RentIifConverter
+Run-RentIifConverter.cmd
+```
+
+### Option 3: Git
+
+Use this option if Git is installed.
+
+```cmd
+git clone https://github.com/VanyaHuaman/RentIifConverter.git
+cd RentIifConverter
+Run-RentIifConverter.cmd
+```
+
 ## Use
 
 1. Double-click `Run-RentIifConverter.cmd`.
