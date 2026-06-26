@@ -1,6 +1,6 @@
 # Rent IIF Converter
 
-A small Windows GUI for converting an Avena rent transaction Excel report into a QuickBooks receive-payment `.iif` import file.
+A small Windows GUI for converting Avena rent transaction Excel reports into QuickBooks invoice or receive-payment `.iif` import files.
 
 ## Requirements
 
@@ -58,11 +58,12 @@ Run-RentIifConverter.cmd
 2. Choose the rent transaction report `.xlsx`.
 3. Confirm the processing date.
 4. Confirm the output folder.
-5. Confirm the QuickBooks account names:
-   - deposit account, such as `A12000 - Undeposited Funds`
-   - A/R account, such as `A11000 - Accounts Receivable`
-6. Click `Preview`.
-7. Click `Create IIF`.
+5. Choose the process type:
+   - `Payment` uses column I and creates `PAYMENT` rows.
+   - `Invoice` uses column G and creates `INVOICE` rows.
+6. Confirm the QuickBooks account names.
+7. Click `Preview`.
+8. Click `Create IIF`.
 
 The generated file is tab-delimited text, not an Excel workbook renamed with `.iif`.
 
@@ -70,7 +71,8 @@ The generated file is tab-delimited text, not an Excel workbook renamed with `.i
 
 - The output folder defaults to the same folder as the selected rent report.
 - The app remembers the last folders and account names.
-- The output uses QuickBooks `PAYMENT` transactions based on the provided sample IIF structure.
+- Payment output uses `A12000 - Undeposited Funds` for `TRNS` and `A11000 - Accounts Receivable` for `SPL`.
+- Invoice output uses `A11000 - Accounts Receivable` for `TRNS` and `A47600 - ARB Rental Income` for `SPL`.
 - `Open IIF` opens the generated file in Notepad.
 - `Copy Path` copies the generated file path to the clipboard.
 - The app validates that the selected workbook has the expected `Tenant`, `Datetime`, and `Payment` columns.

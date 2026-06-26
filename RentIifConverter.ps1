@@ -10,9 +10,14 @@ param(
     [ValidatePattern('^(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{4}$')]
     [string]$ProcessingDate,
 
+    [ValidateSet('Payment', 'Invoice')]
+    [string]$ProcessType = 'Payment',
+
     [string]$ReceivableAccount = 'A11000 - Accounts Receivable',
 
-    [string]$DepositAccount = 'A12000 - Undeposited Funds'
+    [string]$DepositAccount = 'A12000 - Undeposited Funds',
+
+    [string]$IncomeAccount = 'A47600 - ARB Rental Income'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -268,6 +273,7 @@ function Assert-RentReportHeaders {
     $header = $Rows[0].Values
     $expected = @{
         3 = 'Tenant'
+        7 = 'Invoiced'
         6 = 'Datetime'
         9 = 'Payment'
     }
@@ -293,10 +299,17 @@ function New-RentIifData {
         [datetime]$ProcessingDate,
 
         [Parameter(Mandatory)]
+        [ValidateSet('Payment', 'Invoice')]
+        [string]$ProcessType,
+
+        [Parameter(Mandatory)]
         [string]$ReceivableAccount,
 
         [Parameter(Mandatory)]
-        [string]$DepositAccount
+        [string]$DepositAccount,
+
+        [Parameter(Mandatory)]
+        [string]$IncomeAccount
     )
 
     if (-not (Test-Path -LiteralPath $InputPath -PathType Leaf)) {
@@ -311,10 +324,19 @@ function New-RentIifData {
         throw 'Enter the QuickBooks deposit account name.'
     }
 
+    if ([string]::IsNullOrWhiteSpace($IncomeAccount)) {
+        throw 'Enter the QuickBooks income account name.'
+    }
+
     $rows = @(Get-XlsxFirstSheetRows -Path $InputPath)
     Assert-RentReportHeaders -Rows $rows
 
     $iifDate = $ProcessingDate.ToString('M/d/yyyy', [Globalization.CultureInfo]::InvariantCulture)
+    $transactionType = if ($ProcessType -eq 'Invoice') { 'INVOICE' } else { 'PAYMENT' }
+    $amountColumn = if ($ProcessType -eq 'Invoice') { 7 } else { 9 }
+    $trnsAccount = if ($ProcessType -eq 'Invoice') { $ReceivableAccount } else { $DepositAccount }
+    $splAccount = if ($ProcessType -eq 'Invoice') { $IncomeAccount } else { $ReceivableAccount }
+    $modeLabel = if ($ProcessType -eq 'Invoice') { 'invoiced amounts in column G' } else { 'payment amounts in column I' }
     $iifLines = [System.Collections.Generic.List[string]]::new()
     $previewRows = [System.Collections.Generic.List[object]]::new()
     $iifLines.Add((New-IifLine @('!TRNS', 'TRNSID', 'TRNSTYPE', 'DATE', 'ACCNT', 'NAME', 'AMOUNT', 'DOCNUM')))
@@ -331,37 +353,38 @@ function New-RentIifData {
             continue
         }
 
-        $currentPayment = Convert-ToIifAmount (Get-XlsxCellText -Values $row.Values -Column 9)
-        if ($null -eq $currentPayment -or $currentPayment -eq 0) {
+        $currentAmount = Convert-ToIifAmount (Get-XlsxCellText -Values $row.Values -Column $amountColumn)
+        if ($null -eq $currentAmount -or $currentAmount -eq 0) {
             $skippedRows++
             continue
         }
 
         $dateTimeValue = Get-XlsxCellText -Values $row.Values -Column 6
         $docNum = Get-XlsxCellText -Values $row.Values -Column 14
-        $amount = [Math]::Abs($currentPayment)
+        $amount = [Math]::Abs($currentAmount)
         $splitAmount = -1 * $amount
         $amountText = Format-IifAmount -Amount $amount
         $splitAmountText = Format-IifAmount -Amount $splitAmount
 
         $previewRows.Add([pscustomobject]@{
+            Type = $ProcessType
             SourceRow = $row.RowNumber
             Tenant = $tenantValue
             Date = $iifDate
             Amount = $amountText
-            ReceivableAccount = $ReceivableAccount
-            DepositAccount = $DepositAccount
+            TrnsAccount = $trnsAccount
+            SplAccount = $splAccount
             DocNum = $docNum
             SourceDateTime = $dateTimeValue
         })
 
-        $iifLines.Add((New-IifLine @('TRNS', ' ', 'PAYMENT', $iifDate, $DepositAccount, $tenantValue, $amountText, $docNum)))
-        $iifLines.Add((New-IifLine @('SPL', ' ', 'PAYMENT', $iifDate, $ReceivableAccount, $tenantValue, $splitAmountText, $docNum)))
+        $iifLines.Add((New-IifLine @('TRNS', ' ', $transactionType, $iifDate, $trnsAccount, $tenantValue, $amountText, $docNum)))
+        $iifLines.Add((New-IifLine @('SPL', ' ', $transactionType, $iifDate, $splAccount, $tenantValue, $splitAmountText, $docNum)))
         $processedRows++
     }
 
     if ($processedRows -eq 0) {
-        throw 'No payment rows were found. Check that the selected workbook has payments in column I.'
+        throw "No $($ProcessType.ToLowerInvariant()) rows were found. Check that the selected workbook has $modeLabel."
     }
 
     $iifLines.Add((New-IifLine @('ENDTRNS', '', '', '', '', '', '', '')))
@@ -386,10 +409,17 @@ function Convert-RentReportToIif {
         [datetime]$ProcessingDate,
 
         [Parameter(Mandatory)]
+        [ValidateSet('Payment', 'Invoice')]
+        [string]$ProcessType,
+
+        [Parameter(Mandatory)]
         [string]$ReceivableAccount,
 
         [Parameter(Mandatory)]
-        [string]$DepositAccount
+        [string]$DepositAccount,
+
+        [Parameter(Mandatory)]
+        [string]$IncomeAccount
     )
 
     if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
@@ -397,8 +427,15 @@ function Convert-RentReportToIif {
     }
 
     $processingDateText = $ProcessingDate.ToString('MMddyyyy', [Globalization.CultureInfo]::InvariantCulture)
-    $outputPath = Join-Path -Path $OutputDirectory -ChildPath "RentTrans$processingDateText.iif"
-    $data = New-RentIifData -InputPath $InputPath -ProcessingDate $ProcessingDate -ReceivableAccount $ReceivableAccount -DepositAccount $DepositAccount
+    $outputPrefix = if ($ProcessType -eq 'Invoice') { 'RentInvoice' } else { 'RentPayment' }
+    $outputPath = Join-Path -Path $OutputDirectory -ChildPath "$outputPrefix$processingDateText.iif"
+    $data = New-RentIifData `
+        -InputPath $InputPath `
+        -ProcessingDate $ProcessingDate `
+        -ProcessType $ProcessType `
+        -ReceivableAccount $ReceivableAccount `
+        -DepositAccount $DepositAccount `
+        -IncomeAccount $IncomeAccount
     [System.IO.File]::WriteAllLines($outputPath, $data.IifLines, [System.Text.UTF8Encoding]::new($false))
 
     [pscustomobject]@{
@@ -460,10 +497,12 @@ if ($NoGui) {
         -InputPath $InputPath `
         -OutputDirectory $OutputDirectory `
         -ProcessingDate $date `
+        -ProcessType $ProcessType `
         -ReceivableAccount $ReceivableAccount `
-        -DepositAccount $DepositAccount
+        -DepositAccount $DepositAccount `
+        -IncomeAccount $IncomeAccount
     Write-Host "Output: $($result.OutputPath)"
-    Write-Host "Processed payment rows: $($result.ProcessedRows)"
+    Write-Host "Processed $($ProcessType.ToLowerInvariant()) rows: $($result.ProcessedRows)"
     Write-Host "Skipped rows: $($result.SkippedRows)"
     return
 }
@@ -474,8 +513,10 @@ function Get-AppSettings {
     $defaults = [pscustomobject]@{
         LastInputDirectory = [Environment]::GetFolderPath('MyDocuments')
         LastOutputDirectory = [Environment]::GetFolderPath('MyDocuments')
+        ProcessType = 'Payment'
         ReceivableAccount = 'A11000 - Accounts Receivable'
         DepositAccount = 'A12000 - Undeposited Funds'
+        IncomeAccount = 'A47600 - ARB Rental Income'
     }
 
     if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
@@ -513,8 +554,10 @@ function Save-AppSettings {
     param(
         [string]$InputFile,
         [string]$OutputDirectory,
+        [string]$ProcessType,
         [string]$ReceivableAccount,
-        [string]$DepositAccount
+        [string]$DepositAccount,
+        [string]$IncomeAccount
     )
 
     $settingsDirectory = Split-Path -Parent $settingsPath
@@ -532,8 +575,10 @@ function Save-AppSettings {
     [pscustomobject]@{
         LastInputDirectory = $inputDirectory
         LastOutputDirectory = $OutputDirectory
+        ProcessType = $ProcessType
         ReceivableAccount = $ReceivableAccount
         DepositAccount = $DepositAccount
+        IncomeAccount = $IncomeAccount
     } | ConvertTo-Json | Set-Content -LiteralPath $settingsPath -Encoding UTF8
 }
 
@@ -612,6 +657,19 @@ $dateHint.Text = 'mmddyyyy'
 $dateHint.Location = [System.Drawing.Point]::new(266, 146)
 $dateHint.Size = [System.Drawing.Size]::new(120, 24)
 
+$processLabel = [System.Windows.Forms.Label]::new()
+$processLabel.Text = 'Process'
+$processLabel.Location = [System.Drawing.Point]::new(380, 146)
+$processLabel.Size = [System.Drawing.Size]::new(70, 24)
+
+$processTypeBox = [System.Windows.Forms.ComboBox]::new()
+$processTypeBox.DropDownStyle = 'DropDownList'
+[void]$processTypeBox.Items.Add('Payment')
+[void]$processTypeBox.Items.Add('Invoice')
+$processTypeBox.Location = [System.Drawing.Point]::new(456, 143)
+$processTypeBox.Size = [System.Drawing.Size]::new(140, 26)
+$processTypeBox.SelectedItem = if ($appSettings.ProcessType -eq 'Invoice') { 'Invoice' } else { 'Payment' }
+
 $outputLabel = [System.Windows.Forms.Label]::new()
 $outputLabel.Text = 'Output folder'
 $outputLabel.Location = [System.Drawing.Point]::new($margin, 188)
@@ -647,36 +705,46 @@ $depositAccountBox.Location = [System.Drawing.Point]::new($fieldLeft, 269)
 $depositAccountBox.Size = [System.Drawing.Size]::new(320, 26)
 $depositAccountBox.Text = $appSettings.DepositAccount
 
+$incomeLabel = [System.Windows.Forms.Label]::new()
+$incomeLabel.Text = 'Income account'
+$incomeLabel.Location = [System.Drawing.Point]::new($margin, 314)
+$incomeLabel.Size = [System.Drawing.Size]::new($labelWidth, 24)
+
+$incomeAccountBox = [System.Windows.Forms.TextBox]::new()
+$incomeAccountBox.Location = [System.Drawing.Point]::new($fieldLeft, 311)
+$incomeAccountBox.Size = [System.Drawing.Size]::new(320, 26)
+$incomeAccountBox.Text = $appSettings.IncomeAccount
+
 $previewButton = [System.Windows.Forms.Button]::new()
 $previewButton.Text = 'Preview'
-$previewButton.Location = [System.Drawing.Point]::new($fieldLeft, 314)
+$previewButton.Location = [System.Drawing.Point]::new($fieldLeft, 356)
 $previewButton.Size = [System.Drawing.Size]::new(100, 34)
 
 $createButton = [System.Windows.Forms.Button]::new()
 $createButton.Text = 'Create IIF'
-$createButton.Location = [System.Drawing.Point]::new(246, 314)
+$createButton.Location = [System.Drawing.Point]::new(246, 356)
 $createButton.Size = [System.Drawing.Size]::new(110, 34)
 
 $openFolderButton = [System.Windows.Forms.Button]::new()
 $openFolderButton.Text = 'Open Folder'
-$openFolderButton.Location = [System.Drawing.Point]::new(366, 314)
+$openFolderButton.Location = [System.Drawing.Point]::new(366, 356)
 $openFolderButton.Size = [System.Drawing.Size]::new(110, 34)
 $openFolderButton.Enabled = $false
 
 $openIifButton = [System.Windows.Forms.Button]::new()
 $openIifButton.Text = 'Open IIF'
-$openIifButton.Location = [System.Drawing.Point]::new(486, 314)
+$openIifButton.Location = [System.Drawing.Point]::new(486, 356)
 $openIifButton.Size = [System.Drawing.Size]::new(100, 34)
 $openIifButton.Enabled = $false
 
 $copyPathButton = [System.Windows.Forms.Button]::new()
 $copyPathButton.Text = 'Copy Path'
-$copyPathButton.Location = [System.Drawing.Point]::new(596, 314)
+$copyPathButton.Location = [System.Drawing.Point]::new(596, 356)
 $copyPathButton.Size = [System.Drawing.Size]::new(100, 34)
 $copyPathButton.Enabled = $false
 
 $previewGrid = [System.Windows.Forms.DataGridView]::new()
-$previewGrid.Location = [System.Drawing.Point]::new($margin, 368)
+$previewGrid.Location = [System.Drawing.Point]::new($margin, 410)
 $previewGrid.Size = [System.Drawing.Size]::new(960, 230)
 $previewGrid.ReadOnly = $true
 $previewGrid.AllowUserToAddRows = $false
@@ -686,7 +754,7 @@ $previewGrid.RowHeadersVisible = $false
 $previewGrid.SelectionMode = 'FullRowSelect'
 
 $log = [System.Windows.Forms.TextBox]::new()
-$log.Location = [System.Drawing.Point]::new($margin, 616)
+$log.Location = [System.Drawing.Point]::new($margin, 658)
 $log.Size = [System.Drawing.Size]::new(960, 90)
 $log.Multiline = $true
 $log.ScrollBars = 'Vertical'
@@ -708,10 +776,11 @@ function Update-Layout {
     $outputPathBox.Size = [System.Drawing.Size]::new([Math]::Max(260, $browseOutput.Left - $gap - $fieldLeft), 26)
     $receivableAccountBox.Size = [System.Drawing.Size]::new([Math]::Max(320, $right - $fieldLeft), 26)
     $depositAccountBox.Size = [System.Drawing.Size]::new([Math]::Max(320, $right - $fieldLeft), 26)
+    $incomeAccountBox.Size = [System.Drawing.Size]::new([Math]::Max(320, $right - $fieldLeft), 26)
 
     $title.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), 32)
     $statusLabel.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), 24)
-    $previewGrid.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), [Math]::Max(170, $clientHeight - 530))
+    $previewGrid.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), [Math]::Max(150, $clientHeight - 572))
     $log.Location = [System.Drawing.Point]::new($margin, $previewGrid.Bottom + 16)
     $log.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), [Math]::Max(70, $clientHeight - $log.Top - 18))
 }
@@ -725,6 +794,8 @@ $form.Controls.AddRange(@(
     $dateLabel,
     $processingDateBox,
     $dateHint,
+    $processLabel,
+    $processTypeBox,
     $outputLabel,
     $outputPathBox,
     $browseOutput,
@@ -732,6 +803,8 @@ $form.Controls.AddRange(@(
     $receivableAccountBox,
     $depositLabel,
     $depositAccountBox,
+    $incomeLabel,
+    $incomeAccountBox,
     $previewButton,
     $createButton,
     $openFolderButton,
@@ -743,6 +816,42 @@ $form.Controls.AddRange(@(
 
 $form.Add_Shown({ Update-Layout })
 $form.Add_Resize({ Update-Layout })
+
+function Update-ProcessAccountFields {
+    $isInvoice = $processTypeBox.SelectedItem -eq 'Invoice'
+
+    $depositLabel.Enabled = -not $isInvoice
+    $depositAccountBox.Enabled = -not $isInvoice
+    $incomeLabel.Enabled = $isInvoice
+    $incomeAccountBox.Enabled = $isInvoice
+
+    if ($isInvoice) {
+        if ([string]::IsNullOrWhiteSpace($receivableAccountBox.Text)) {
+            $receivableAccountBox.Text = 'A11000 - Accounts Receivable'
+        }
+        if ([string]::IsNullOrWhiteSpace($incomeAccountBox.Text)) {
+            $incomeAccountBox.Text = 'A47600 - ARB Rental Income'
+        }
+    }
+    else {
+        if ([string]::IsNullOrWhiteSpace($receivableAccountBox.Text)) {
+            $receivableAccountBox.Text = 'A11000 - Accounts Receivable'
+        }
+        if ([string]::IsNullOrWhiteSpace($depositAccountBox.Text)) {
+            $depositAccountBox.Text = 'A12000 - Undeposited Funds'
+        }
+    }
+
+    $previewGrid.DataSource = $null
+    $openIifButton.Enabled = $false
+    $copyPathButton.Enabled = $false
+}
+
+$processTypeBox.Add_SelectedIndexChanged({
+    Update-ProcessAccountFields
+})
+
+Update-ProcessAccountFields
 
 $browseInput.Add_Click({
     $dialog = [System.Windows.Forms.OpenFileDialog]::new()
@@ -760,7 +869,7 @@ $browseInput.Add_Click({
         $previewGrid.DataSource = $null
         $openIifButton.Enabled = $false
         $copyPathButton.Enabled = $false
-        Save-AppSettings -InputFile $inputPathBox.Text -OutputDirectory $outputPathBox.Text -ReceivableAccount $receivableAccountBox.Text -DepositAccount $depositAccountBox.Text
+        Save-AppSettings -InputFile $inputPathBox.Text -OutputDirectory $outputPathBox.Text -ProcessType $processTypeBox.SelectedItem -ReceivableAccount $receivableAccountBox.Text -DepositAccount $depositAccountBox.Text -IncomeAccount $incomeAccountBox.Text
     }
 })
 
@@ -773,7 +882,7 @@ $browseOutput.Add_Click({
 
     if ($dialog.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) {
         $outputPathBox.Text = $dialog.SelectedPath
-        Save-AppSettings -InputFile $inputPathBox.Text -OutputDirectory $outputPathBox.Text -ReceivableAccount $receivableAccountBox.Text -DepositAccount $depositAccountBox.Text
+        Save-AppSettings -InputFile $inputPathBox.Text -OutputDirectory $outputPathBox.Text -ProcessType $processTypeBox.SelectedItem -ReceivableAccount $receivableAccountBox.Text -DepositAccount $depositAccountBox.Text -IncomeAccount $incomeAccountBox.Text
     }
 })
 
@@ -789,9 +898,11 @@ function Get-FormInput {
     [pscustomobject]@{
         InputPath = $inputPathBox.Text
         OutputDirectory = $outputPathBox.Text
+        ProcessType = [string]$processTypeBox.SelectedItem
         ProcessingDate = Get-ValidatedDate -Text $processingDateBox.Text
         ReceivableAccount = $receivableAccountBox.Text
         DepositAccount = $depositAccountBox.Text
+        IncomeAccount = $incomeAccountBox.Text
     }
 }
 
@@ -806,8 +917,10 @@ $previewButton.Add_Click({
         $data = New-RentIifData `
             -InputPath $input.InputPath `
             -ProcessingDate $input.ProcessingDate `
+            -ProcessType $input.ProcessType `
             -ReceivableAccount $input.ReceivableAccount `
-            -DepositAccount $input.DepositAccount
+            -DepositAccount $input.DepositAccount `
+            -IncomeAccount $input.IncomeAccount
 
         $previewGrid.DataSource = [System.Collections.ArrayList]::new($data.PreviewRows)
         $statusLabel.Text = 'Preview ready.'
@@ -816,7 +929,7 @@ $previewButton.Add_Click({
             "Skipped rows: $($data.SkippedRows)"
             'Review the rows below before creating the IIF file.'
         ) -join [Environment]::NewLine
-        Save-AppSettings -InputFile $input.InputPath -OutputDirectory $input.OutputDirectory -ReceivableAccount $input.ReceivableAccount -DepositAccount $input.DepositAccount
+        Save-AppSettings -InputFile $input.InputPath -OutputDirectory $input.OutputDirectory -ProcessType $input.ProcessType -ReceivableAccount $input.ReceivableAccount -DepositAccount $input.DepositAccount -IncomeAccount $input.IncomeAccount
     }
     catch {
         $statusLabel.Text = 'Could not build preview.'
@@ -844,8 +957,10 @@ $createButton.Add_Click({
             -InputPath $input.InputPath `
             -OutputDirectory $input.OutputDirectory `
             -ProcessingDate $input.ProcessingDate `
+            -ProcessType $input.ProcessType `
             -ReceivableAccount $input.ReceivableAccount `
-            -DepositAccount $input.DepositAccount
+            -DepositAccount $input.DepositAccount `
+            -IncomeAccount $input.IncomeAccount
 
         $script:lastOutputDirectory = Split-Path -Parent $result.OutputPath
         $script:lastOutputPath = $result.OutputPath
@@ -855,7 +970,7 @@ $createButton.Add_Click({
         $log.Text = @(
             'Created QuickBooks IIF file.'
             "Output: $($result.OutputPath)"
-            "Processed payment rows: $($result.ProcessedRows)"
+            "Processed $($input.ProcessType.ToLowerInvariant()) rows: $($result.ProcessedRows)"
             "Skipped rows: $($result.SkippedRows)"
             ''
             'The output is plain tab-delimited text with an .iif extension.'
@@ -863,7 +978,7 @@ $createButton.Add_Click({
         $openFolderButton.Enabled = $true
         $openIifButton.Enabled = $true
         $copyPathButton.Enabled = $true
-        Save-AppSettings -InputFile $input.InputPath -OutputDirectory $input.OutputDirectory -ReceivableAccount $input.ReceivableAccount -DepositAccount $input.DepositAccount
+        Save-AppSettings -InputFile $input.InputPath -OutputDirectory $input.OutputDirectory -ProcessType $input.ProcessType -ReceivableAccount $input.ReceivableAccount -DepositAccount $input.DepositAccount -IncomeAccount $input.IncomeAccount
     }
     catch {
         $statusLabel.Text = 'Could not create IIF file.'
