@@ -61,6 +61,7 @@ Run-RentIifConverter.cmd
 5. Choose the process type:
    - `Payment` uses column I and creates `PAYMENT` rows.
    - `Invoice` uses column G and creates `INVOICE` rows.
+   - `Both` creates separate payment and invoice IIF files from one mixed report.
 6. Confirm the QuickBooks account names.
 7. Click `Preview`.
 8. Click `Create IIF`.
