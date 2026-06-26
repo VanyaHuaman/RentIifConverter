@@ -607,8 +607,8 @@ $appSettings = Get-AppSettings
 $form = [System.Windows.Forms.Form]::new()
 $form.Text = 'Rent IIF Converter'
 $form.StartPosition = 'CenterScreen'
-$form.MinimumSize = [System.Drawing.Size]::new(860, 680)
-$form.Size = [System.Drawing.Size]::new(1020, 760)
+$form.MinimumSize = [System.Drawing.Size]::new(860, 740)
+$form.Size = [System.Drawing.Size]::new(1020, 820)
 
 $margin = 18
 $labelWidth = 110
@@ -659,92 +659,92 @@ $dateHint.Size = [System.Drawing.Size]::new(120, 24)
 
 $processLabel = [System.Windows.Forms.Label]::new()
 $processLabel.Text = 'Process'
-$processLabel.Location = [System.Drawing.Point]::new(380, 146)
-$processLabel.Size = [System.Drawing.Size]::new(70, 24)
+$processLabel.Location = [System.Drawing.Point]::new($margin, 188)
+$processLabel.Size = [System.Drawing.Size]::new($labelWidth, 24)
 
 $processTypeBox = [System.Windows.Forms.ComboBox]::new()
 $processTypeBox.DropDownStyle = 'DropDownList'
 [void]$processTypeBox.Items.Add('Payment')
 [void]$processTypeBox.Items.Add('Invoice')
-$processTypeBox.Location = [System.Drawing.Point]::new(456, 143)
-$processTypeBox.Size = [System.Drawing.Size]::new(140, 26)
+$processTypeBox.Location = [System.Drawing.Point]::new($fieldLeft, 185)
+$processTypeBox.Size = [System.Drawing.Size]::new(160, 26)
 $processTypeBox.SelectedItem = if ($appSettings.ProcessType -eq 'Invoice') { 'Invoice' } else { 'Payment' }
 
 $outputLabel = [System.Windows.Forms.Label]::new()
 $outputLabel.Text = 'Output folder'
-$outputLabel.Location = [System.Drawing.Point]::new($margin, 188)
+$outputLabel.Location = [System.Drawing.Point]::new($margin, 230)
 $outputLabel.Size = [System.Drawing.Size]::new($labelWidth, 24)
 
 $outputPathBox = [System.Windows.Forms.TextBox]::new()
-$outputPathBox.Location = [System.Drawing.Point]::new($fieldLeft, 185)
+$outputPathBox.Location = [System.Drawing.Point]::new($fieldLeft, 227)
 $outputPathBox.Size = [System.Drawing.Size]::new(540, 26)
 $outputPathBox.Text = $appSettings.LastOutputDirectory
 
 $browseOutput = [System.Windows.Forms.Button]::new()
 $browseOutput.Text = 'Browse...'
-$browseOutput.Location = [System.Drawing.Point]::new(700, 183)
+$browseOutput.Location = [System.Drawing.Point]::new(700, 225)
 $browseOutput.Size = [System.Drawing.Size]::new($buttonWidth, 30)
 
 $receivableLabel = [System.Windows.Forms.Label]::new()
 $receivableLabel.Text = 'A/R account'
-$receivableLabel.Location = [System.Drawing.Point]::new($margin, 230)
+$receivableLabel.Location = [System.Drawing.Point]::new($margin, 272)
 $receivableLabel.Size = [System.Drawing.Size]::new($labelWidth, 24)
 
 $receivableAccountBox = [System.Windows.Forms.TextBox]::new()
-$receivableAccountBox.Location = [System.Drawing.Point]::new($fieldLeft, 227)
+$receivableAccountBox.Location = [System.Drawing.Point]::new($fieldLeft, 269)
 $receivableAccountBox.Size = [System.Drawing.Size]::new(320, 26)
 $receivableAccountBox.Text = $appSettings.ReceivableAccount
 
 $depositLabel = [System.Windows.Forms.Label]::new()
 $depositLabel.Text = 'Deposit account'
-$depositLabel.Location = [System.Drawing.Point]::new($margin, 272)
+$depositLabel.Location = [System.Drawing.Point]::new($margin, 314)
 $depositLabel.Size = [System.Drawing.Size]::new($labelWidth, 24)
 
 $depositAccountBox = [System.Windows.Forms.TextBox]::new()
-$depositAccountBox.Location = [System.Drawing.Point]::new($fieldLeft, 269)
+$depositAccountBox.Location = [System.Drawing.Point]::new($fieldLeft, 311)
 $depositAccountBox.Size = [System.Drawing.Size]::new(320, 26)
 $depositAccountBox.Text = $appSettings.DepositAccount
 
 $incomeLabel = [System.Windows.Forms.Label]::new()
 $incomeLabel.Text = 'Income account'
-$incomeLabel.Location = [System.Drawing.Point]::new($margin, 314)
+$incomeLabel.Location = [System.Drawing.Point]::new($margin, 356)
 $incomeLabel.Size = [System.Drawing.Size]::new($labelWidth, 24)
 
 $incomeAccountBox = [System.Windows.Forms.TextBox]::new()
-$incomeAccountBox.Location = [System.Drawing.Point]::new($fieldLeft, 311)
+$incomeAccountBox.Location = [System.Drawing.Point]::new($fieldLeft, 353)
 $incomeAccountBox.Size = [System.Drawing.Size]::new(320, 26)
 $incomeAccountBox.Text = $appSettings.IncomeAccount
 
 $previewButton = [System.Windows.Forms.Button]::new()
 $previewButton.Text = 'Preview'
-$previewButton.Location = [System.Drawing.Point]::new($fieldLeft, 356)
+$previewButton.Location = [System.Drawing.Point]::new($fieldLeft, 398)
 $previewButton.Size = [System.Drawing.Size]::new(100, 34)
 
 $createButton = [System.Windows.Forms.Button]::new()
 $createButton.Text = 'Create IIF'
-$createButton.Location = [System.Drawing.Point]::new(246, 356)
+$createButton.Location = [System.Drawing.Point]::new(246, 398)
 $createButton.Size = [System.Drawing.Size]::new(110, 34)
 
 $openFolderButton = [System.Windows.Forms.Button]::new()
 $openFolderButton.Text = 'Open Folder'
-$openFolderButton.Location = [System.Drawing.Point]::new(366, 356)
+$openFolderButton.Location = [System.Drawing.Point]::new(366, 398)
 $openFolderButton.Size = [System.Drawing.Size]::new(110, 34)
 $openFolderButton.Enabled = $false
 
 $openIifButton = [System.Windows.Forms.Button]::new()
 $openIifButton.Text = 'Open IIF'
-$openIifButton.Location = [System.Drawing.Point]::new(486, 356)
+$openIifButton.Location = [System.Drawing.Point]::new(486, 398)
 $openIifButton.Size = [System.Drawing.Size]::new(100, 34)
 $openIifButton.Enabled = $false
 
 $copyPathButton = [System.Windows.Forms.Button]::new()
 $copyPathButton.Text = 'Copy Path'
-$copyPathButton.Location = [System.Drawing.Point]::new(596, 356)
+$copyPathButton.Location = [System.Drawing.Point]::new(596, 398)
 $copyPathButton.Size = [System.Drawing.Size]::new(100, 34)
 $copyPathButton.Enabled = $false
 
 $previewGrid = [System.Windows.Forms.DataGridView]::new()
-$previewGrid.Location = [System.Drawing.Point]::new($margin, 410)
+$previewGrid.Location = [System.Drawing.Point]::new($margin, 452)
 $previewGrid.Size = [System.Drawing.Size]::new(960, 230)
 $previewGrid.ReadOnly = $true
 $previewGrid.AllowUserToAddRows = $false
@@ -754,7 +754,7 @@ $previewGrid.RowHeadersVisible = $false
 $previewGrid.SelectionMode = 'FullRowSelect'
 
 $log = [System.Windows.Forms.TextBox]::new()
-$log.Location = [System.Drawing.Point]::new($margin, 658)
+$log.Location = [System.Drawing.Point]::new($margin, 700)
 $log.Size = [System.Drawing.Size]::new(960, 90)
 $log.Multiline = $true
 $log.ScrollBars = 'Vertical'
@@ -770,7 +770,7 @@ function Update-Layout {
     $right = $clientWidth - $margin
 
     $browseInput.Location = [System.Drawing.Point]::new($right - $buttonWidth, 99)
-    $browseOutput.Location = [System.Drawing.Point]::new($right - $buttonWidth, 183)
+    $browseOutput.Location = [System.Drawing.Point]::new($right - $buttonWidth, 225)
 
     $inputPathBox.Size = [System.Drawing.Size]::new([Math]::Max(260, $browseInput.Left - $gap - $fieldLeft), 26)
     $outputPathBox.Size = [System.Drawing.Size]::new([Math]::Max(260, $browseOutput.Left - $gap - $fieldLeft), 26)
@@ -780,7 +780,7 @@ function Update-Layout {
 
     $title.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), 32)
     $statusLabel.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), 24)
-    $previewGrid.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), [Math]::Max(150, $clientHeight - 572))
+    $previewGrid.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), [Math]::Max(140, $clientHeight - 614))
     $log.Location = [System.Drawing.Point]::new($margin, $previewGrid.Bottom + 16)
     $log.Size = [System.Drawing.Size]::new([Math]::Max(360, $clientWidth - (2 * $margin)), [Math]::Max(70, $clientHeight - $log.Top - 18))
 }
