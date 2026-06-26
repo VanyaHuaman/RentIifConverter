@@ -558,6 +558,67 @@ function New-RentIifPreviewData {
         -IncomeAccount $IncomeAccount
 }
 
+function Get-RentReportProcessType {
+    param(
+        [Parameter(Mandatory)]
+        [string]$InputPath
+    )
+
+    $rows = @(Get-XlsxFirstSheetRows -Path $InputPath)
+    Assert-RentReportHeaders -Rows $rows
+
+    $invoiceRows = 0
+    $paymentRows = 0
+
+    foreach ($row in $rows | Where-Object { $_.RowNumber -gt 1 }) {
+        $tenantValue = Normalize-IifName (Get-XlsxCellText -Values $row.Values -Column 3)
+        if ([string]::IsNullOrWhiteSpace($tenantValue)) {
+            continue
+        }
+
+        $invoiceAmount = Convert-ToIifAmount (Get-XlsxCellText -Values $row.Values -Column 7)
+        $paymentAmount = Convert-ToIifAmount (Get-XlsxCellText -Values $row.Values -Column 9)
+
+        if ($null -ne $invoiceAmount -and $invoiceAmount -ne 0) {
+            $invoiceRows++
+        }
+
+        if ($null -ne $paymentAmount -and $paymentAmount -ne 0) {
+            $paymentRows++
+        }
+    }
+
+    if ($invoiceRows -gt 0 -and $paymentRows -gt 0) {
+        return [pscustomobject]@{
+            ProcessType = 'Both'
+            InvoiceRows = $invoiceRows
+            PaymentRows = $paymentRows
+        }
+    }
+
+    if ($invoiceRows -gt 0) {
+        return [pscustomobject]@{
+            ProcessType = 'Invoice'
+            InvoiceRows = $invoiceRows
+            PaymentRows = $paymentRows
+        }
+    }
+
+    if ($paymentRows -gt 0) {
+        return [pscustomobject]@{
+            ProcessType = 'Payment'
+            InvoiceRows = $invoiceRows
+            PaymentRows = $paymentRows
+        }
+    }
+
+    return [pscustomobject]@{
+        ProcessType = $null
+        InvoiceRows = 0
+        PaymentRows = 0
+    }
+}
+
 function Get-DateFromFileName {
     param(
         [Parameter(Mandatory)]
@@ -992,6 +1053,22 @@ $browseInput.Add_Click({
         $inputPathBox.Text = $dialog.FileName
         $processingDateBox.Text = Get-DateFromFileName -Path $dialog.FileName
         $outputPathBox.Text = Split-Path -Parent $dialog.FileName
+
+        try {
+            $detectedProcess = Get-RentReportProcessType -InputPath $dialog.FileName
+            if (-not [string]::IsNullOrWhiteSpace($detectedProcess.ProcessType)) {
+                $processTypeBox.SelectedItem = $detectedProcess.ProcessType
+                $statusLabel.Text = "Detected $($detectedProcess.ProcessType): $($detectedProcess.InvoiceRows) invoice row(s), $($detectedProcess.PaymentRows) payment row(s)."
+            }
+            else {
+                $statusLabel.Text = 'Could not detect invoice or payment rows. Choose the process manually.'
+            }
+        }
+        catch {
+            $statusLabel.Text = 'Could not auto-detect the process. Choose it manually.'
+            $log.Text = $_ | Out-String
+        }
+
         $previewGrid.DataSource = $null
         $openIifButton.Enabled = $false
         $copyPathButton.Enabled = $false
