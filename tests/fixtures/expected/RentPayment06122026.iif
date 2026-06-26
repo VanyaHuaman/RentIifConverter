@@ -1,0 +1,10 @@
+!TRNS	TRNSID	TRNSTYPE	DATE	ACCNT	NAME	AMOUNT	DOCNUM
+!SPL	SPLID	TRNSTYPE	DATE	ACCNT	NAME	AMOUNT	DOCNUM
+!ENDTRNS							
+TRNS	 	PAYMENT	6/12/2026	A12000 - Undeposited Funds	Daijah Giles	263.63	
+SPL	 	PAYMENT	6/12/2026	A11000 - Accounts Receivable	Daijah Giles	-263.63	
+TRNS	 	PAYMENT	6/12/2026	A12000 - Undeposited Funds	Ariel Torres	301.50	
+SPL	 	PAYMENT	6/12/2026	A11000 - Accounts Receivable	Ariel Torres	-301.50	
+TRNS	 	PAYMENT	6/12/2026	A12000 - Undeposited Funds	Jerrell Mason	236.50	
+SPL	 	PAYMENT	6/12/2026	A11000 - Accounts Receivable	Jerrell Mason	-236.50	
+ENDTRNS							
