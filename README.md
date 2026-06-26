@@ -59,8 +59,8 @@ Run-RentIifConverter.cmd
 3. Confirm the processing date.
 4. Confirm the output folder.
 5. Confirm the QuickBooks account names:
-   - deposit account, such as `Undeposited Funds`
-   - A/R account, such as `Accounts Receivable`
+   - deposit account, such as `A12000 - Undeposited Funds`
+   - A/R account, such as `A11000 - Accounts Receivable`
 6. Click `Preview`.
 7. Click `Create IIF`.
 

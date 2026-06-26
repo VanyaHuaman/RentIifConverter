@@ -10,9 +10,9 @@ param(
     [ValidatePattern('^(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{4}$')]
     [string]$ProcessingDate,
 
-    [string]$ReceivableAccount = 'Accounts Receivable',
+    [string]$ReceivableAccount = 'A11000 - Accounts Receivable',
 
-    [string]$DepositAccount = 'Undeposited Funds'
+    [string]$DepositAccount = 'A12000 - Undeposited Funds'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -87,6 +87,28 @@ function New-IifLine {
     )
 
     return (($Fields | ForEach-Object { Convert-ToIifText $_ }) -join "`t")
+}
+
+function Format-IifAmount {
+    param(
+        [Parameter(Mandatory)]
+        [decimal]$Amount
+    )
+
+    return $Amount.ToString('0.00', [Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Normalize-IifName {
+    param(
+        [AllowNull()]
+        [string]$Name
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return ''
+    }
+
+    return ($Name -replace '\s+', ' ').Trim()
 }
 
 function Convert-XlsxColumnNameToNumber {
@@ -303,7 +325,7 @@ function New-RentIifData {
     $skippedRows = 0
 
     foreach ($row in $rows | Where-Object { $_.RowNumber -gt 1 }) {
-        $tenantValue = Get-XlsxCellText -Values $row.Values -Column 3
+        $tenantValue = Normalize-IifName (Get-XlsxCellText -Values $row.Values -Column 3)
         if ([string]::IsNullOrWhiteSpace($tenantValue)) {
             $skippedRows++
             continue
@@ -319,27 +341,30 @@ function New-RentIifData {
         $docNum = Get-XlsxCellText -Values $row.Values -Column 14
         $amount = [Math]::Abs($currentPayment)
         $splitAmount = -1 * $amount
+        $amountText = Format-IifAmount -Amount $amount
+        $splitAmountText = Format-IifAmount -Amount $splitAmount
 
         $previewRows.Add([pscustomobject]@{
             SourceRow = $row.RowNumber
             Tenant = $tenantValue
             Date = $iifDate
-            Amount = $amount
+            Amount = $amountText
             ReceivableAccount = $ReceivableAccount
             DepositAccount = $DepositAccount
             DocNum = $docNum
             SourceDateTime = $dateTimeValue
         })
 
-        $iifLines.Add((New-IifLine @('TRNS', ' ', 'PAYMENT', $iifDate, $DepositAccount, $tenantValue, $amount, $docNum)))
-        $iifLines.Add((New-IifLine @('SPL', ' ', 'PAYMENT', $iifDate, $ReceivableAccount, $tenantValue, $splitAmount, $docNum)))
-        $iifLines.Add((New-IifLine @('ENDTRNS', '', '', '', '', '', '', '')))
+        $iifLines.Add((New-IifLine @('TRNS', ' ', 'PAYMENT', $iifDate, $DepositAccount, $tenantValue, $amountText, $docNum)))
+        $iifLines.Add((New-IifLine @('SPL', ' ', 'PAYMENT', $iifDate, $ReceivableAccount, $tenantValue, $splitAmountText, $docNum)))
         $processedRows++
     }
 
     if ($processedRows -eq 0) {
         throw 'No payment rows were found. Check that the selected workbook has payments in column I.'
     }
+
+    $iifLines.Add((New-IifLine @('ENDTRNS', '', '', '', '', '', '', '')))
 
     [pscustomobject]@{
         IifLines = $iifLines
@@ -449,8 +474,8 @@ function Get-AppSettings {
     $defaults = [pscustomobject]@{
         LastInputDirectory = [Environment]::GetFolderPath('MyDocuments')
         LastOutputDirectory = [Environment]::GetFolderPath('MyDocuments')
-        ReceivableAccount = 'Accounts Receivable'
-        DepositAccount = 'Undeposited Funds'
+        ReceivableAccount = 'A11000 - Accounts Receivable'
+        DepositAccount = 'A12000 - Undeposited Funds'
     }
 
     if (-not (Test-Path -LiteralPath $settingsPath -PathType Leaf)) {
@@ -460,7 +485,15 @@ function Get-AppSettings {
     try {
         $saved = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
         if ([string]::IsNullOrWhiteSpace([string]$saved.DepositAccount) -and -not [string]::IsNullOrWhiteSpace([string]$saved.IncomeAccount)) {
-            $saved | Add-Member -NotePropertyName DepositAccount -NotePropertyValue 'Undeposited Funds' -Force
+            $saved | Add-Member -NotePropertyName DepositAccount -NotePropertyValue 'A12000 - Undeposited Funds' -Force
+        }
+
+        if ($saved.ReceivableAccount -eq 'Accounts Receivable') {
+            $saved.ReceivableAccount = 'A11000 - Accounts Receivable'
+        }
+
+        if ($saved.DepositAccount -eq 'Undeposited Funds') {
+            $saved.DepositAccount = 'A12000 - Undeposited Funds'
         }
 
         foreach ($name in $defaults.PSObject.Properties.Name) {
