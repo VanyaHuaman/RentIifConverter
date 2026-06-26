@@ -2,6 +2,8 @@
 
 A small Windows GUI for converting Avena rent transaction Excel reports into QuickBooks invoice or receive-payment `.iif` import files.
 
+Current version: `0.1.0`
+
 ## Requirements
 
 - Windows
