@@ -502,6 +502,28 @@ function Convert-RentReportToIif {
     }
 }
 
+function Get-RentIifOutputPaths {
+    param(
+        [Parameter(Mandatory)]
+        [string]$OutputDirectory,
+
+        [Parameter(Mandatory)]
+        [datetime]$ProcessingDate,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Payment', 'Invoice', 'Both')]
+        [string]$ProcessType
+    )
+
+    $processingDateText = $ProcessingDate.ToString('MMddyyyy', [Globalization.CultureInfo]::InvariantCulture)
+    $processes = if ($ProcessType -eq 'Both') { @('Invoice', 'Payment') } else { @($ProcessType) }
+
+    foreach ($process in $processes) {
+        $outputPrefix = if ($process -eq 'Invoice') { 'RentInvoice' } else { 'RentPayment' }
+        Join-Path -Path $OutputDirectory -ChildPath "$outputPrefix$processingDateText.iif"
+    }
+}
+
 function New-RentIifPreviewData {
     param(
         [Parameter(Mandatory)]
@@ -1156,6 +1178,38 @@ $createButton.Add_Click({
 
     try {
         $input = Get-FormInput
+        $existingOutputPaths = @(
+            Get-RentIifOutputPaths `
+                -OutputDirectory $input.OutputDirectory `
+                -ProcessingDate $input.ProcessingDate `
+                -ProcessType $input.ProcessType |
+                Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
+        )
+
+        if ($existingOutputPaths.Count -gt 0) {
+            $message = @(
+                'The following IIF file already exists and will be replaced:'
+                ''
+                ($existingOutputPaths -join [Environment]::NewLine)
+                ''
+                'Continue?'
+            ) -join [Environment]::NewLine
+
+            $choice = [System.Windows.Forms.MessageBox]::Show(
+                $form,
+                $message,
+                'Replace Existing IIF File',
+                [System.Windows.Forms.MessageBoxButtons]::YesNo,
+                [System.Windows.Forms.MessageBoxIcon]::Warning
+            )
+
+            if ($choice -ne [System.Windows.Forms.DialogResult]::Yes) {
+                $statusLabel.Text = 'Create IIF canceled.'
+                $log.Text = 'No files were changed.'
+                return
+            }
+        }
+
         $result = Convert-RentReportToIif `
             -InputPath $input.InputPath `
             -OutputDirectory $input.OutputDirectory `
