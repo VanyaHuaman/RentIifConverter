@@ -578,7 +578,7 @@ function Get-DateFromFileName {
         }
     }
 
-    return (Get-Date).ToString('MMddyyyy', [Globalization.CultureInfo]::InvariantCulture)
+    return ''
 }
 
 if ($NoGui) {
@@ -591,7 +591,14 @@ if ($NoGui) {
     }
 
     if ([string]::IsNullOrWhiteSpace($ProcessingDate)) {
-        $ProcessingDate = Get-DateFromFileName -Path $InputPath
+        $detectedProcessingDate = Get-DateFromFileName -Path $InputPath
+        if (-not [string]::IsNullOrWhiteSpace($detectedProcessingDate)) {
+            $ProcessingDate = $detectedProcessingDate
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ProcessingDate)) {
+        throw 'NoGui mode requires -ProcessingDate when the input filename does not contain a date.'
     }
 
     $date = [datetime]::MinValue
@@ -701,6 +708,10 @@ function Get-ValidatedDate {
     )
 
     $date = [datetime]::MinValue
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        throw 'Enter the processing date in mmddyyyy format, for example 06262026.'
+    }
+
     if (-not [datetime]::TryParseExact(
             $Text,
             'MMddyyyy',
@@ -762,7 +773,7 @@ $dateLabel.Size = [System.Drawing.Size]::new($labelWidth, 24)
 $processingDateBox = [System.Windows.Forms.TextBox]::new()
 $processingDateBox.Location = [System.Drawing.Point]::new($fieldLeft, 143)
 $processingDateBox.Size = [System.Drawing.Size]::new(120, 26)
-$processingDateBox.Text = (Get-Date).ToString('MMddyyyy', [Globalization.CultureInfo]::InvariantCulture)
+$processingDateBox.Text = ''
 
 $dateHint = [System.Windows.Forms.Label]::new()
 $dateHint.Text = 'mmddyyyy'

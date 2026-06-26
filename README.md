@@ -56,7 +56,7 @@ Run-RentIifConverter.cmd
 
 1. Double-click `Run-RentIifConverter.cmd`.
 2. Choose the rent transaction report `.xlsx`.
-3. Confirm the processing date.
+3. Confirm the processing date. The app fills this from the filename when it finds a valid `mmddyyyy` date; otherwise you must enter it.
 4. Confirm the output folder.
 5. Choose the process type:
    - `Payment` uses column I and creates `PAYMENT` rows.
