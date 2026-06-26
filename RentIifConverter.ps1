@@ -360,7 +360,7 @@ function New-RentIifData {
         }
 
         $dateTimeValue = Get-XlsxCellText -Values $row.Values -Column 6
-        $docNum = Get-XlsxCellText -Values $row.Values -Column 14
+        $docNum = ''
         $amount = [Math]::Abs($currentAmount)
         $splitAmount = -1 * $amount
         $amountText = Format-IifAmount -Amount $amount
